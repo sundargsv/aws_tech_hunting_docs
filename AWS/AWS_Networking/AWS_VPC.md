@@ -585,3 +585,152 @@ Inbound Rule:
    - VPC peering maintains network isolation while enabling controlled and specific inter-VPC traffic.
 
 By setting up VPC peering, you ensure that your services in private subnets across different VPCs can securely and efficiently communicate without exposing them to the public internet.
+
+============================================================================================================================================================================================================
+
+6. how does the above mentioned Services or applications within Private Subnet A (in VPC A) be accessed publicly so it can internally call services or application within Private Subnet B (in VPC B) as per the above mentioned design?
+
+
+![alt text](image.png)
+
+To enable public access to services or applications within Private Subnet A (in VPC A) while maintaining secure internal communication with services or applications within Private Subnet B (in VPC B), you can use a combination of public-facing Load Balancers, VPC peering, and proper routing. Here's how you can achieve this setup:
+
+### Architecture Overview
+
+1. **Public Access to Private Subnet A:**
+   - Use a public-facing Load Balancer (e.g., AWS Application Load Balancer (ALB)) in VPC A to expose services or applications in Private Subnet A to the public.
+
+2. **Internal Communication Between VPCs:**
+   - Use VPC peering to enable private communication between Private Subnet A (in VPC A) and Private Subnet B (in VPC B).
+
+### Steps to Set Up
+
+1. **Set Up VPC Peering:**
+   - Create a VPC peering connection between VPC A and VPC B.
+   - Update route tables in both VPCs to route traffic between the VPCs via the peering connection.
+   - Configure security groups to allow traffic between the private subnets.
+
+2. **Set Up Public-Facing Load Balancer:**
+   - Create an Application Load Balancer (ALB) in VPC A with public access.
+   - Target the services or applications in Private Subnet A using the ALB.
+
+3. **Ensure Secure Internal Communication:**
+   - The services in Private Subnet A can call the services in Private Subnet B via private IP addresses, leveraging the VPC peering connection.
+
+### Detailed Steps
+
+#### 1. VPC Peering Setup
+
+**VPC A:**
+- **CIDR:** `10.0.0.0/16`
+- **Private Subnet A CIDR:** `10.0.1.0/24`
+
+**VPC B:**
+- **CIDR:** `10.1.0.0/16`
+- **Private Subnet B CIDR:** `10.1.1.0/24`
+
+**Peering Connection:**
+- Create a VPC peering connection between VPC A and VPC B.
+- Accept the peering connection.
+
+**Route Tables:**
+- **Route Table for VPC A (Private Subnet A):**
+  ```
+  Destination        Target
+  10.0.0.0/16        local
+  10.1.0.0/16        pcx-xxxxxxxx (peering connection to VPC B)
+  ```
+
+- **Route Table for VPC B (Private Subnet B):**
+  ```
+  Destination        Target
+  10.1.0.0/16        local
+  10.0.0.0/16        pcx-xxxxxxxx (peering connection to VPC A)
+  ```
+
+**Security Groups:**
+- **Security Group for Private Subnet A (in VPC A):**
+  - Allow inbound traffic from `10.1.1.0/24` (Private Subnet B).
+
+- **Security Group for Private Subnet B (in VPC B):**
+  - Allow inbound traffic from `10.0.1.0/24` (Private Subnet A).
+
+#### 2. Set Up Public-Facing Load Balancer
+
+**Application Load Balancer (ALB) in VPC A:**
+- **Scheme:** Internet-facing
+- **Listeners:** HTTP/HTTPS
+- **Target Group:**
+  - Target Type: Instance or IP
+  - Targets: Services or applications in Private Subnet A.
+
+**Example ALB Configuration:**
+```yaml
+---
+apiVersion: elbv2.amazonaws.com/v1alpha1
+kind: LoadBalancer
+metadata:
+  name: my-public-alb
+  namespace: default
+spec:
+  name: my-public-alb
+  scheme: internet-facing
+  subnets:
+    - subnet-xxxxxxxx  # Public subnet in VPC A
+    - subnet-yyyyyyyy  # Public subnet in VPC A
+  listeners:
+    - protocol: HTTP
+      port: 80
+      defaultActions:
+        - type: forward
+          targetGroupArn: arn:aws:elasticloadbalancing:region:account-id:targetgroup/my-target-group/1234567890abcdef
+---
+apiVersion: elbv2.amazonaws.com/v1alpha1
+kind: TargetGroup
+metadata:
+  name: my-target-group
+  namespace: default
+spec:
+  name: my-target-group
+  targetType: instance
+  protocol: HTTP
+  port: 80
+  healthCheck:
+    path: /
+  vpcId: vpc-xxxxxxxx  # VPC A
+  targets:
+    - id: i-0abcdef1234567890  # Instance in Private Subnet A
+    - id: i-0abcdef1234567891  # Another instance in Private Subnet A
+```
+
+#### 3. Ensure Secure Internal Communication
+
+**Service Communication:**
+- Services in Private Subnet A can call services in Private Subnet B using private IP addresses.
+
+**DNS Resolution:**
+- Optionally, use a private DNS for service discovery within the VPCs.
+
+### Example Service Call
+
+1. **Public Access:**
+   - Users access `https://my-public-alb.example.com` which routes traffic to services in Private Subnet A via the ALB.
+
+2. **Internal Communication:**
+   - Service in Private Subnet A makes a call to Service in Private Subnet B using its private IP or DNS name, e.g., `http://service-b.private.local`.
+
+### Security Considerations
+
+1. **TLS Encryption:**
+   - Use TLS certificates for encrypting public traffic to the ALB.
+
+2. **IAM Roles:**
+   - Assign appropriate IAM roles to instances for accessing required resources.
+
+3. **Network ACLs:**
+   - Ensure Network ACLs are configured to allow necessary traffic between the subnets and VPCs.
+
+4. **Monitoring and Logging:**
+   - Enable logging and monitoring on the ALB and instances for security and performance monitoring.
+
+By following these steps, you can securely expose services in Private Subnet A to the public while enabling them to communicate with services in Private Subnet B using VPC peering for private, internal communication.
