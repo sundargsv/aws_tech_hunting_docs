@@ -109,14 +109,3 @@ Kafka brokers distributed across multiple Availability Zones within each region
 
 ### Conclusion
 Using Partition Placement Groups for Kafka setups provides the best balance of fault tolerance, scalability, and performance. Cluster Placement Groups are not suitable due to single AZ limitations, and Spread Placement Groups are limited in scalability and introduce higher network latency due to physical separation of instances. By deploying Kafka in Partition Placement Groups across multiple AZs in each region, you ensure high availability and resilience, meeting the requirements of a multi-region SaaS product.
-
-### System Architecture Designs
-
-#### Cluster Placement Group Architecture
-- Kafka brokers confined to a single Availability Zone within each region.
-
-#### Spread Placement Group Architecture
-- Kafka brokers spread across multiple racks within a single Availability Zone in each region.
-
-#### Partition Placement Group Architecture
-- Kafka brokers distributed across multiple Availability Zones within each region.
